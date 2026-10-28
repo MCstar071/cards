@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>蓝鸢 · 角色卡档案馆</title>
+<meta name="description" content="个人角色卡档案馆：收藏、展示并分享我写下的角色卡。">
+<meta name="theme-color" content="#e9f3ff">
+<meta name="color-scheme" content="light">
+<link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='32' fill='%23dcebfa'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='30' font-family='serif' fill='%232e6cae'%3E蓝%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- 背景：淡蓝天空与飘落花瓣 -->
+<div class="sky" aria-hidden="true">
+  <span class="glow g1"></span>
+  <span class="glow g2"></span>
+  <div class="petals" id="petals"></div>
+</div>
+
+<!-- 图标库 -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>
+  </symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+    <circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>
+  </symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+    <path d="M4 7.5h8.5M18.5 7.5H20M4 16.5h3.5M13 16.5h7"/>
+    <circle cx="15.5" cy="7.5" r="2.2"/><circle cx="9" cy="16.5" r="2.2"/>
+  </symbol>
+  <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r=".9" fill="currentColor" stroke="none"/>
+  </symbol>
+  <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+    <path d="M6 6l12 12M18 6 6 18"/>
+  </symbol>
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14"/>
+  </symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 17 17 7M9 7h8v8"/>
+  </symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+    <path d="M12 5v14M5 12h14"/>
+  </symbol>
+  <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/>
+    <circle cx="9" cy="10" r="1.6"/><path d="m5 17 4.5-4.5 3 3L16 12l3.5 3.5"/>
+  </symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5.5A1.5 1.5 0 0 0 13.5 4h-8A1.5 1.5 0 0 0 4 5.5v8A1.5 1.5 0 0 0 5.5 15"/>
+  </symbol>
+</svg>
+
+<header class="site-header">
+  <div class="wrap header-row">
+    <button class="avatar-btn" id="aboutBtn" type="button" aria-label="关于本站与作者" title="关于本站与作者">
+      <img id="headerAvatar" alt="作者头像" width="56" height="56">
+    </button>
+
+    <div class="identity">
+      <h1 class="identity-name" id="headerName">蓝鸢</h1>
+      <p class="identity-en" id="headerEnglish">LANYUAN · CHARACTER ARCHIVE</p>
+      <p class="identity-credit" id="headerCredit">作者 蓝鸢</p>
+    </div>
+
+    <div class="header-spacer"></div>
+
+    <div class="archive-count" aria-label="馆藏总数">
+      <span>ARCHIVE</span>
+      <b id="headerCount">00</b>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn btn-primary admin-only" id="uploadBtn" type="button">
+        <svg class="ico" aria-hidden="true"><use href="#i-upload"/></svg>上传角色卡
+      </button>
+      <button class="icon-btn" id="aboutBtn2" type="button" aria-label="关于本站" title="关于本站">
+        <svg class="ico" aria-hidden="true"><use href="#i-info"/></svg>
+      </button>
+      <button class="icon-btn admin-only" id="settingsBtn" type="button" aria-label="站点设置" title="站点设置">
+        <svg class="ico" aria-hidden="true"><use href="#i-settings"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="archive-main">
+  <div class="wrap">
+    <div class="toolbar">
+      <div class="filters" id="filters" role="group" aria-label="按作者筛选"></div>
+
+      <div class="toolbar-right">
+        <label class="search">
+          <svg class="ico" aria-hidden="true"><use href="#i-search"/></svg>
+          <input id="searchInput" type="search" placeholder="搜索角色 / 标签" autocomplete="off" aria-label="搜索角色或标签">
+        </label>
+        <span class="status" id="status"><i></i><span id="statusText">LOADING</span></span>
+      </div>
+    </div>
+
+    <section class="gallery" id="gallery" aria-label="角色卡档案" aria-busy="true"></section>
+
+    <div class="empty" id="empty">
+      <div class="empty-ico"><svg class="ico" aria-hidden="true"><use href="#i-image"/></svg></div>
+      <h2 id="emptyTitle">还没有角色卡</h2>
+      <p id="emptyText">把你写好的 PNG 角色卡或 JSON 文件拖进来，就能在这里看到它。</p>
+      <button class="btn btn-primary admin-only" id="emptyBtn" type="button">
+        <svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg><span id="emptyBtnText">上传第一张角色卡</span>
+      </button>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-row">
+    <span id="footerLeft">© 2026 蓝鸢</span>
+    <div class="footer-right">
+      <span id="footerRight">UNIFIED CARD LAYOUT</span>
+      <button class="admin-exit admin-only" id="exitAdmin" type="button">退出管理模式</button>
+    </div>
+  </div>
+</footer>
+
+<!-- ===================== 档案详情 ===================== -->
+<div class="modal" id="detailModal" aria-hidden="true">
+  <div class="modal-backdrop" data-close></div>
+  <div class="panel detail-panel" role="dialog" aria-modal="true" aria-labelledby="detailName">
+    <button class="modal-close" type="button" data-close aria-label="关闭档案">
+      <svg class="ico" aria-hidden="true"><use href="#i-close"/></svg>
+    </button>
+
+    <div class="detail-visual">
+      <div class="detail-art"><img id="detailImage" alt="" decoding="async"></div>
+      <div class="detail-visual-foot">
+        <span>CHARACTER CARD · ARCHIVE</span>
+        <button class="btn btn-ghost btn-sm" id="detailDownload" type="button">下载原卡</button>
+      </div>
+    </div>
+
+    <div class="detail-content">
+      <div class="detail-head">
+        <div>
+          <h2 id="detailName">角色名</h2>
+          <p id="detailMeta">CARD · 0000</p>
+        </div>
+        <span class="badge" id="detailBadge">本机</span>
+      </div>
+
+      <div class="tabs" id="detailTabs" role="tablist" aria-label="角色档案内容"></div>
+
+      <section class="reader" aria-live="polite">
+        <div class="reader-head">
+          <span id="readerIndex">01 · OPENING</span>
+          <button class="copy-btn" id="copyBtn" type="button">
+            <svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg>复制
+          </button>
+        </div>
+        <div class="reader-body" id="readerBody" tabindex="0"></div>
+      </section>
+
+      <div class="detail-actions">
+        <button class="link-danger" id="deleteCardBtn" type="button">删除这张卡</button>
+        <span class="detail-hint" id="detailHint"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 站点设置 ===================== -->
+<div class="modal" id="settingsModal" aria-hidden="true">
+  <div class="modal-backdrop" data-close></div>
+  <div class="panel settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <button class="modal-close" type="button" data-close aria-label="关闭设置">
+      <svg class="ico" aria-hidden="true"><use href="#i-close"/></svg>
+    </button>
+
+    <div class="panel-head">
+      <p class="panel-kicker">SITE SETTINGS</p>
+      <h2 id="settingsTitle">站点设置</h2>
+      <p class="panel-sub">改完点「应用预览」查看效果。要让访客也看到同样的名字和头像，请点「导出 config.js」，再用它替换网站里的同名文件。</p>
+    </div>
+
+    <div class="form-grid">
+      <div class="field">
+        <label for="setUsername">用户名</label>
+        <input id="setUsername" maxlength="20" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="setEnglish">英文副标题</label>
+        <input id="setEnglish" maxlength="48" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="setAuthor">作者</label>
+        <input id="setAuthor" maxlength="20" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="setMaster">主人</label>
+        <input id="setMaster" maxlength="20" autocomplete="off" placeholder="留空则不显示">
+      </div>
+      <div class="field full">
+        <label for="setBio">作者简介</label>
+        <textarea id="setBio" maxlength="200"></textarea>
+      </div>
+      <div class="field">
+        <label for="setFooter">页脚左侧</label>
+        <input id="setFooter" maxlength="40" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="setFooterRight">页脚右侧</label>
+        <input id="setFooterRight" maxlength="40" autocomplete="off">
+      </div>
+
+      <div class="field full">
+        <label>头像</label>
+        <div class="avatar-edit">
+          <img id="avatarPreview" alt="头像预览" width="56" height="56">
+          <div class="avatar-edit-actions">
+            <button class="btn btn-ghost btn-sm" id="avatarPick" type="button">选择图片</button>
+            <button class="btn btn-ghost btn-sm" id="avatarReset" type="button">恢复默认</button>
+            <input id="avatarFile" type="file" accept="image/*" hidden>
+          </div>
+          <small>建议使用正方形图片，会自动压缩到 256px。</small>
+        </div>
+      </div>
+
+      <div class="field full">
+        <label>主题色（浅蓝系）</label>
+        <div class="swatches" id="swatches"></div>
+      </div>
+
+      <div class="field full">
+        <label class="check"><input type="checkbox" id="setDemo"> 显示内置示例卡</label>
+      </div>
+    </div>
+
+    <div class="panel-actions">
+      <button class="btn btn-ghost" id="exportConfig" type="button">导出 config.js</button>
+      <button class="btn btn-primary" id="applySettings" type="button">应用预览</button>
+    </div>
+
+    <div class="form-section">
+      <h3>数据与发布</h3>
+      <p class="panel-sub">上传的角色卡先保存在本机浏览器；导出 cards.js 并上传到网站目录后，访客才能看到。</p>
+      <div class="data-actions">
+        <button class="btn btn-ghost" id="exportCards" type="button">导出 cards.js</button>
+        <button class="btn btn-ghost" id="restoreDemo" type="button">恢复示例卡</button>
+        <button class="btn btn-ghost danger" id="clearLocal" type="button">清空本地上传</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 关于 ===================== -->
+<div class="modal" id="aboutModal" aria-hidden="true">
+  <div class="modal-backdrop" data-close></div>
+  <div class="panel about-panel" role="dialog" aria-modal="true" aria-labelledby="aboutName">
+    <button class="modal-close" type="button" data-close aria-label="关闭">
+      <svg class="ico" aria-hidden="true"><use href="#i-close"/></svg>
+    </button>
+
+    <div class="about-head">
+      <img id="aboutAvatar" alt="作者头像" width="78" height="78">
+      <div>
+        <h2 id="aboutName">蓝鸢</h2>
+        <p id="aboutEn">LANYUAN · CHARACTER ARCHIVE</p>
+      </div>
+    </div>
+
+    <p class="about-bio" id="aboutBio"></p>
+
+    <dl class="about-meta">
+      <div><dt>作者</dt><dd id="aboutAuthor">—</dd></div>
+      <div><dt>主人</dt><dd id="aboutMaster">—</dd></div>
+      <div><dt>馆藏</dt><dd id="aboutCount">0 张</dd></div>
+      <div class="admin-only"><dt>本机</dt><dd id="aboutLocal">0 张</dd></div>
+    </dl>
+
+    <p class="about-note">这是一个纯静态的角色卡档案馆：卡面与设定保存在你自己的浏览器或网站文件里，不会上传到任何服务器。</p>
+
+    <div class="panel-actions admin-only">
+      <button class="btn btn-ghost" id="aboutUpload" type="button">上传角色卡</button>
+      <button class="btn btn-primary" id="aboutSettings" type="button">站点设置</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<div class="drop-veil" id="dropVeil">
+  <div class="drop-card">松开即可导入角色卡</div>
+</div>
+
+<input id="fileInput" type="file" accept=".png,image/png,.json,application/json" multiple hidden>
+
+<noscript>
+  <p style="padding:40px 20px;text-align:center;color:#2f5277;font-size:13px">
+    本页需要 JavaScript 才能显示角色卡档案。
+  </p>
+</noscript>
+
+<!-- 身份配置：改这里就能改名字 / 作者 / 主人 / 头像 -->
+<script src="config.js"></script>
+<!-- 已发布的角色卡数据（由「导出 cards.js」生成） -->
+<script src="cards.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
