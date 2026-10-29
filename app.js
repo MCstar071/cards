@@ -164,7 +164,8 @@
     tab: 'opening',
     localCount: 0,
     loaded: false,
-    admin: false
+    admin: false,
+    dirty: false
   };
 
   const urlCache = new Map();
@@ -540,19 +541,43 @@
 
   async function loadCards() {
     const hidden = new Set(readJSON('archive.demoHidden', []));
+    const hiddenPublished = new Set(readJSON('archive.hiddenPublished', []));
     const local = state.admin
       ? (await storage.all()).map((card) => ({ ...card, source: 'local' }))
       : [];
-    const published = Array.isArray(window.__ARCHIVE_CARDS__)
+    const rawPublished = Array.isArray(window.__ARCHIVE_CARDS__)
       ? window.__ARCHIVE_CARDS__.map(normalizePublished)
       : [];
+
+    let pruned = false;
+    hiddenPublished.forEach((id) => {
+      if (!rawPublished.some((card) => card.id === id)) {
+        hiddenPublished.delete(id);
+        pruned = true;
+      }
+    });
+    if (pruned) writeJSON('archive.hiddenPublished', [...hiddenPublished]);
+
+    const published = rawPublished.filter((card) => !hiddenPublished.has(card.id));
     const demos = state.config.showDemo === false
       ? []
       : DEMO_DATA.map(demoCard).filter((card) => !hidden.has(card.id));
 
     state.localCount = local.length;
+    state.dirty = state.dirty || hiddenPublished.size > 0;
     state.cards = [...local, ...published, ...demos]
       .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  }
+
+  function renderPublishBar() {
+    const bar = $('#publishBar');
+    if (!bar) return;
+    bar.hidden = !(state.admin && state.dirty);
+  }
+
+  function markDirty() {
+    state.dirty = true;
+    renderPublishBar();
   }
 
   /* ------------------------------------------------------------------ */
@@ -568,7 +593,7 @@
   }
 
   function canDownload(card) {
-    return Boolean(card.imageBlob || card.image);
+    return Boolean(card.original || card.imageBlob || card.image);
   }
 
   function cardHTML(card, index) {
@@ -673,6 +698,7 @@
 
     renderFilters();
     renderEmpty(list);
+    renderPublishBar();
   }
 
   /* ------------------------------------------------------------------ */
@@ -755,16 +781,21 @@
 
     const download = $('#detailDownload');
     download.hidden = !canDownload(card);
-    download.textContent = card.imageBlob ? '下载原卡' : '保存卡面';
+    download.textContent = card.original ? '下载角色卡' : (card.imageBlob ? '下载原卡' : '保存卡面');
+    download.title = card.original ? '原始 PNG，可直接导入 TAVO' : '';
 
     const remove = $('#deleteCardBtn');
-    remove.hidden = card.source === 'published' || !state.admin;
-    remove.textContent = card.source === 'demo' ? '移除示例卡' : '删除这张卡';
+    remove.hidden = !state.admin;
+    remove.textContent = card.source === 'demo'
+      ? '移除示例卡'
+      : card.source === 'published'
+        ? '从发布列表移除'
+        : '删除这张卡';
 
     $('#detailHint').textContent = card.source === 'local'
-      ? '仅保存在本机浏览器 · 导出 cards.js 后访客可见'
+      ? '仅保存在本机浏览器 · 导出发布包后访客可见'
       : card.source === 'published'
-        ? '已发布 · 所有访客可见'
+        ? (card.original ? '已发布 · 原始 PNG 可直接导入 TAVO' : '已发布 · 当前只有卡面图')
         : (state.admin ? '示例卡 · 可在设置中恢复' : '示例卡 · 仅作展示');
 
     openModal('#detailModal');
@@ -794,7 +825,9 @@
 
   function downloadCard(card) {
     if (!card) return;
-    if (card.imageBlob) {
+    if (card.original) {
+      triggerDownload(card.original, safeName(card.name) + '.png');
+    } else if (card.imageBlob) {
       const url = URL.createObjectURL(card.imageBlob);
       triggerDownload(url, safeName(card.name) + '.png');
       setTimeout(() => URL.revokeObjectURL(url), 4000);
@@ -1041,11 +1074,12 @@
     }
 
     clearBusy();
+    if (added) markDirty();
     await loadCards();
     render();
 
     if (added) {
-      toast(`已加入 ${added} 张角色卡 · 记得「导出 cards.js」发布`, 'ok', 5000);
+      toast(`已加入 ${added} 张角色卡 · 记得「导出发布包」发布`, 'ok', 5000);
     }
     if (errors.length) {
       toast(errors[0] + (errors.length > 1 ? `（共 ${errors.length} 个文件失败）` : ''), 'error', 6500);
@@ -1087,22 +1121,129 @@
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 
-  async function exportCards() {
-    const local = state.cards.filter((card) => card.source === 'local');
-    if (!local.length) {
-      toast('还没有本地上传的角色卡', 'error');
+  const CRC_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      table[n] = c >>> 0;
+    }
+    return table;
+  })();
+
+  function crc32(bytes) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function createZip(files) {
+    const encoder = new TextEncoder();
+    const now = new Date();
+    const dosTime = ((now.getHours() & 31) << 11) | ((now.getMinutes() & 63) << 5) | ((now.getSeconds() / 2) & 31);
+    const dosDate = (((now.getFullYear() - 1980) & 127) << 9) | (((now.getMonth() + 1) & 15) << 5) | (now.getDate() & 31);
+
+    const localParts = [];
+    const centralParts = [];
+    let offset = 0;
+
+    files.forEach((file) => {
+      const nameBytes = encoder.encode(file.name);
+      const data = file.data instanceof Uint8Array ? file.data : encoder.encode(String(file.data));
+      const crc = crc32(data);
+
+      const local = new Uint8Array(30 + nameBytes.length);
+      const lv = new DataView(local.buffer);
+      lv.setUint32(0, 0x04034b50, true);
+      lv.setUint16(4, 20, true);
+      lv.setUint16(6, 0x0800, true);
+      lv.setUint16(8, 0, true);
+      lv.setUint16(10, dosTime, true);
+      lv.setUint16(12, dosDate, true);
+      lv.setUint32(14, crc, true);
+      lv.setUint32(18, data.length, true);
+      lv.setUint32(22, data.length, true);
+      lv.setUint16(26, nameBytes.length, true);
+      lv.setUint16(28, 0, true);
+      local.set(nameBytes, 30);
+
+      const central = new Uint8Array(46 + nameBytes.length);
+      const cv = new DataView(central.buffer);
+      cv.setUint32(0, 0x02014b50, true);
+      cv.setUint16(4, 20, true);
+      cv.setUint16(6, 20, true);
+      cv.setUint16(8, 0x0800, true);
+      cv.setUint16(10, 0, true);
+      cv.setUint16(12, dosTime, true);
+      cv.setUint16(14, dosDate, true);
+      cv.setUint32(16, crc, true);
+      cv.setUint32(20, data.length, true);
+      cv.setUint32(24, data.length, true);
+      cv.setUint16(28, nameBytes.length, true);
+      cv.setUint16(30, 0, true);
+      cv.setUint16(32, 0, true);
+      cv.setUint16(34, 0, true);
+      cv.setUint16(36, 0, true);
+      cv.setUint32(38, 0, true);
+      cv.setUint32(42, offset, true);
+      central.set(nameBytes, 46);
+
+      localParts.push(local, data);
+      centralParts.push(central);
+      offset += local.length + data.length;
+    });
+
+    const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+    const end = new Uint8Array(22);
+    const ev = new DataView(end.buffer);
+    ev.setUint32(0, 0x06054b50, true);
+    ev.setUint16(4, 0, true);
+    ev.setUint16(6, 0, true);
+    ev.setUint16(8, files.length, true);
+    ev.setUint16(10, files.length, true);
+    ev.setUint32(12, centralSize, true);
+    ev.setUint32(16, offset, true);
+    ev.setUint16(20, 0, true);
+
+    return new Blob([...localParts, ...centralParts, end], { type: 'application/zip' });
+  }
+
+  function originalFileName(card) {
+    return 'card-' + (hash(card.id) >>> 0).toString(16).padStart(8, '0') + '.png';
+  }
+
+  async function exportPackage() {
+    const cards = state.cards.filter((card) => card.source !== 'demo');
+    const hadPublished = Array.isArray(window.__ARCHIVE_CARDS__) && window.__ARCHIVE_CARDS__.length > 0;
+
+    if (!cards.length && !state.dirty && !hadPublished) {
+      toast('没有可发布的角色卡', 'error');
       return;
     }
 
     clearBusy();
-    busyToast = toast(`正在打包 ${local.length} 张角色卡…`, 'busy');
+    busyToast = toast(`正在打包 ${cards.length} 张角色卡…`, 'busy');
 
     const payload = [];
-    for (const card of local) {
-      const image = card.imageBlob
-        ? await compressToDataUrl(card.imageBlob)
-        : (card.image || card.cover);
-      payload.push({
+    const zipFiles = [];
+    let originals = 0;
+
+    for (const card of cards) {
+      let image = card.image || card.cover;
+      let original = card.original || '';
+
+      if (card.imageBlob) {
+        image = await compressToDataUrl(card.imageBlob);
+      }
+
+      if (card.source === 'local' && card.imageBlob && card.imageBlob.type === 'image/png') {
+        const fileName = originalFileName(card);
+        const bytes = new Uint8Array(await card.imageBlob.arrayBuffer());
+        zipFiles.push({ name: fileName, data: bytes });
+        original = fileName;
+      }
+
+      const item = {
         id: card.id,
         name: card.name,
         alias: card.alias,
@@ -1112,18 +1253,33 @@
         createdAt: card.createdAt,
         sections: card.sections,
         image
-      });
+      };
+      if (original) item.original = original;
+      if (original) originals += 1;
+      payload.push(item);
     }
 
     const text = `/* 角色卡档案馆 · 卡片数据
-   由「导出 cards.js」生成（${new Date().toLocaleString('zh-CN')}）。
-   把这个文件放到 index.html 同一个目录，访客就能看到这些角色卡。 */
+   由「导出发布包」生成（${new Date().toLocaleString('zh-CN')}）。
+   把 cards.js 和 card-*.png 一起放到 index.html 同一个目录，访客就能看到并下载原卡。 */
 window.__ARCHIVE_CARDS__ = ${JSON.stringify(payload)};
 `;
 
+    zipFiles.unshift({ name: 'cards.js', data: new TextEncoder().encode(text) });
+
     clearBusy();
-    downloadBlob(new Blob([text], { type: 'text/javascript;charset=utf-8' }), 'cards.js');
-    toast('已导出 cards.js · 上传到网站目录即可', 'ok', 5000);
+    downloadBlob(createZip(zipFiles), 'card-archive-publish.zip');
+
+    state.dirty = readJSON('archive.hiddenPublished', []).length > 0;
+    renderPublishBar();
+
+    toast(
+      originals
+        ? `已导出发布包：${cards.length} 张卡、${originals} 张可下载原卡`
+        : `已导出发布包：${cards.length} 张卡（没有可下载的原卡 PNG）`,
+      'ok',
+      6000
+    );
   }
 
   function currentFormConfig() {
@@ -1459,29 +1615,47 @@ window.__ARCHIVE_CONFIG__ = ${JSON.stringify(config, null, 2)};
 
     $('#deleteCardBtn').addEventListener('click', async () => {
       const card = activeCard();
-      if (!card || card.source === 'published') return;
+      if (!card || !state.admin) return;
 
-      const message = card.source === 'demo'
-        ? '移除这张示例卡？'
-        : `删除「${card.name}」？\n删除后本机数据不可恢复（已导出的 cards.js 不受影响）。`;
+      let message;
+      if (card.source === 'demo') {
+        message = '移除这张示例卡？';
+      } else if (card.source === 'published') {
+        message = `从发布列表移除「${card.name}」？\n\n移除后还要点「导出发布包」并上传 cards.js，访客才会看不到。`;
+      } else {
+        message = `删除「${card.name}」？\n\n本机数据不可恢复；已经发布的 cards.js 不受影响。`;
+      }
       if (!window.confirm(message)) return;
 
       if (card.source === 'demo') {
         const hidden = readJSON('archive.demoHidden', []);
         if (!hidden.includes(card.id)) hidden.push(card.id);
         writeJSON('archive.demoHidden', hidden);
+      } else if (card.source === 'published') {
+        const hidden = readJSON('archive.hiddenPublished', []);
+        if (!hidden.includes(card.id)) hidden.push(card.id);
+        writeJSON('archive.hiddenPublished', hidden);
+        markDirty();
       } else {
         await storage.remove(card.id);
         if (urlCache.has(card.id)) {
           URL.revokeObjectURL(urlCache.get(card.id));
           urlCache.delete(card.id);
         }
+        markDirty();
       }
 
       closeModal('#detailModal');
       await loadCards();
       render();
-      toast(card.source === 'demo' ? '已移除示例卡' : '已删除', 'ok');
+      toast(
+        card.source === 'demo'
+          ? '已移除示例卡'
+          : card.source === 'published'
+            ? '已从发布列表移除 · 记得导出发布包'
+            : '已删除 · 记得导出发布包更新线上',
+        'ok'
+      );
     });
 
     document.addEventListener('click', (event) => {
@@ -1519,7 +1693,8 @@ window.__ARCHIVE_CONFIG__ = ${JSON.stringify(config, null, 2)};
 
     $('#applySettings').addEventListener('click', applySettings);
     $('#exportConfig').addEventListener('click', exportConfig);
-    $('#exportCards').addEventListener('click', exportCards);
+    $('#exportCards').addEventListener('click', exportPackage);
+    $('#publishNow').addEventListener('click', exportPackage);
 
     $('#restoreDemo').addEventListener('click', async () => {
       localStorage.removeItem('archive.demoHidden');

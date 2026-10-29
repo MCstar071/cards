@@ -10,5 +10,5 @@ window.__ARCHIVE_CONFIG__ = {
   "accent": "#4b8fd6",
   "footer": "© 2026 星光之旅途",
   "footerRight": "UNIFIED CARD  Starlight",
-  "showDemo": true
+  "showDemo": false
 };

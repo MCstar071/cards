@@ -456,6 +456,23 @@ img{ max-width:100%; }
 }
 .status.is-empty i{ background:var(--muted-2); box-shadow:none; }
 
+/* 管理模式：有未发布的修改时出现 */
+.publish-bar{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+  margin:0 0 18px;
+  padding:11px 16px;
+  border:1px solid rgba(190,146,62,.28);
+  border-radius:12px;
+  background:rgba(255,249,235,.8);
+  color:#7a5a2b;
+  font-size:12px;
+}
+.publish-bar[hidden]{ display:none; }
+.publish-bar span{ flex:1; min-width:200px; }
+
 /* ==========================================================================
    卡片墙
    ========================================================================== */

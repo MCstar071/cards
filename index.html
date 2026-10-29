@@ -102,6 +102,11 @@
       </div>
     </div>
 
+    <div class="publish-bar admin-only" id="publishBar" hidden>
+      <span>有修改还没发布 · 访客现在看到的还是旧内容</span>
+      <button class="btn btn-primary btn-sm" id="publishNow" type="button">导出发布包</button>
+    </div>
+
     <section class="gallery" id="gallery" aria-label="角色卡档案" aria-busy="true"></section>
 
     <div class="empty" id="empty">
@@ -244,9 +249,10 @@
 
     <div class="form-section">
       <h3>数据与发布</h3>
-      <p class="panel-sub">上传的角色卡先保存在本机浏览器；导出 cards.js 并上传到网站目录后，访客才能看到。</p>
+      <p class="panel-sub">上传的卡先存在本机；导出「发布包」解压后，把 <code>cards.js</code> 和 <code>card-*.png</code> 一起上传到仓库根目录，访客才能看到。包里的原卡 PNG 可以直接导入 TAVO。</p>
+      <p class="panel-sub">删除：打开任意一张卡，底部有「删除这张卡」（本机）或「从发布列表移除」（已发布）；删完记得再导出发布包。</p>
       <div class="data-actions">
-        <button class="btn btn-ghost" id="exportCards" type="button">导出 cards.js</button>
+        <button class="btn btn-ghost" id="exportCards" type="button">导出发布包（ZIP）</button>
         <button class="btn btn-ghost" id="restoreDemo" type="button">恢复示例卡</button>
         <button class="btn btn-ghost danger" id="clearLocal" type="button">清空本地上传</button>
       </div>
